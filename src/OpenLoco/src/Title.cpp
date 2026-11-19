@@ -26,6 +26,7 @@
 #include "World/CompanyManager.h"
 
 #include <OpenLoco/Diagnostics/Logging.h>
+#include <OpenLoco/Utility/String.hpp>
 #include <array>
 #include <optional>
 #include <variant>
@@ -116,7 +117,7 @@ namespace OpenLoco::Title
         }
     }
 
-    static void selectGeneratedTitleObjects(ObjectManager::ObjectIndexSelection& selection)
+    static void selectGeneratedTitleObjects(ObjectManager::ObjectIndexSelection& selection, bool addAllScenery = true)
     {
         using ObjectManager::SelectObjectModes;
         if (selection.selectionMetaData.numSelectedObjects[enumValue(ObjectType::climate)] == 0)
@@ -144,6 +145,10 @@ namespace OpenLoco::Title
                 }
             }
         }
+        if (!addAllScenery)
+        {
+            return;
+        }
         // 讓地圖豐富一些：全部的地形、樹、建築、圍牆、道路
         constexpr std::array kAllOfTypes = { ObjectType::land, ObjectType::tree, ObjectType::building, ObjectType::wall, ObjectType::road };
         for (const auto type : kAllOfTypes)
@@ -155,17 +160,52 @@ namespace OpenLoco::Title
         }
     }
 
-    static void generateTitleWorld()
+    bool loadStandaloneWorldObjects(const std::vector<std::string>& preferredObjects)
     {
-        Diagnostics::Logging::info("Title save not found: generating a title landscape from installed objects");
-
         ObjectManager::unloadAll();
-        auto& selection = ObjectManager::prepareSelectionList(false);
-        selectGeneratedTitleObjects(selection);
+        auto& selection = ObjectManager::prepareSelectionList(false, preferredObjects.empty());
+        // 先選指定的物件（依內部名稱），其餘必選類型再自動補上
+        for (const auto& name : preferredObjects)
+        {
+            bool found = false;
+            const auto numObjects = ObjectManager::getNumInstalledObjects();
+            for (uint32_t i = 0; i < numObjects; i++)
+            {
+                const auto& entry = ObjectManager::getObjectInIndex(static_cast<ObjectManager::ObjectIndexId>(i));
+                if (Utility::iequals(Utility::trim(entry._header.getName()), name))
+                {
+                    found = selection.selectObject(ObjectManager::SelectObjectModes::defaultSelect, entry._header);
+                    break;
+                }
+            }
+            if (!found)
+            {
+                Diagnostics::Logging::warn("Preferred object {} could not be selected", name);
+            }
+        }
+        // 有指定物件時只補齊必選類型，不自動加入全部的樹與建築（避免混入大量 placeholder）
+        selectGeneratedTitleObjects(selection, preferredObjects.empty());
+        const auto invalidType = ObjectManager::validateObjectSelection(selection.objectFlags);
+        if (invalidType.has_value())
+        {
+            Diagnostics::Logging::warn("Object selection invalid: missing object type {}", enumValue(*invalidType));
+        }
+        else
+        {
+            Diagnostics::Logging::info("Object selection valid");
+        }
         ObjectManager::loadSelectionListObjects(selection.objectFlags);
         ObjectManager::freeSelectionList();
         ObjectManager::reloadAll();
         Scenario::sub_4748D4();
+        return !invalidType.has_value();
+    }
+
+    static void generateTitleWorld()
+    {
+        Diagnostics::Logging::info("Title save not found: generating a title landscape from installed objects");
+
+        loadStandaloneWorldObjects();
 
         EditorController::setDefaultLandscapeOptions();
         Scenario::getOptions().topographyStyle = Scenario::TopographyStyle::smallHills;

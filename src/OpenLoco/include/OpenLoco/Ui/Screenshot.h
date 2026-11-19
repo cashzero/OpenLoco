@@ -27,6 +27,7 @@ namespace OpenLoco::Ui
         std::optional<std::pair<int32_t, int32_t>> centreTile{}; // 未指定時用主視窗中心，再不行用地圖中心
         bool giant = false;  // 整張地圖
         std::string objectName{}; // 有指定時改為輸出該物件的預覽圖（物件選擇視窗的樣式）
+        std::string centreTarget{}; // "town:N"（第 N 個城鎮）或 "industry:NAME"（第一個使用該物件的產業）
     };
 
     void saveScreenshotToFile(const fs::path& path, const HeadlessScreenshotOptions& options);

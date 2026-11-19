@@ -40,6 +40,7 @@ namespace OpenLoco
         std::cout << "                simulate [options] <path> <ticks> [path]" << std::endl;
         std::cout << "                compare [options] <path1> <path2>" << std::endl;
         std::cout << "                screenshot [options] <path> [ticks] -o <png>" << std::endl;
+        std::cout << "                new-game [ticks] -o <sv5> [--select NAME,NAME...]" << std::endl;
         std::cout << std::endl;
         std::cout << "options:" << std::endl;
         std::cout << "--bind                     Address to bind to when hosting a server" << std::endl;
@@ -304,7 +305,11 @@ namespace OpenLoco
             ssOptions.width = w;
             ssOptions.height = h;
         }
-        if (!options.centre.empty())
+        if (options.centre.rfind("town:", 0) == 0 || options.centre.rfind("industry:", 0) == 0)
+        {
+            ssOptions.centreTarget = options.centre;
+        }
+        else if (!options.centre.empty())
         {
             int32_t x = 0, y = 0;
             if (std::sscanf(options.centre.c_str(), "%d,%d", &x, &y) != 2)
@@ -343,6 +348,32 @@ namespace OpenLoco
                 return compare(options);
             case CommandLineAction::screenshot:
                 return screenshot(options);
+            case CommandLineAction::newGame:
+                if (options.outputPath.empty())
+                {
+                    Logging::error("Output path (-o) not specified");
+                    return EXIT_FAILURE;
+                }
+            {
+                std::vector<std::string> preferred;
+                std::string current;
+                for (const char c : options.select + ",")
+                {
+                    if (c == ',')
+                    {
+                        if (!current.empty())
+                        {
+                            preferred.push_back(current);
+                        }
+                        current.clear();
+                    }
+                    else
+                    {
+                        current += c;
+                    }
+                }
+                return OpenLoco::newGame(fs::u8path(options.outputPath), options.ticks.value_or(0), preferred) ? EXIT_SUCCESS : EXIT_FAILURE;
+            }
             default:
                 return std::nullopt;
         }

@@ -1,4 +1,12 @@
 #include "Scenario/Scenario.h"
+#include "GameState.h"
+#include "GameStateFlags.h"
+#include <OpenLoco/Core/Prng.h>
+#include "Date.h"
+#include "S5/S5.h"
+#include "Scenario/ScenarioOptions.h"
+#include "Title.h"
+#include "EditorController.h"
 #include <algorithm>
 #include <cassert>
 #include <chrono>
@@ -516,5 +524,53 @@ namespace OpenLoco
             return false;
         }
         return true;
+    }
+
+    // OpenGraphics fork：headless 開新遊戲（與編輯器／新遊戲相同的流程），模擬 ticks 後存檔
+    bool newGame(const fs::path& outputPath, int32_t ticks, const std::vector<std::string>& preferredObjects)
+    {
+        try
+        {
+            initialise();
+            const bool valid = Title::loadStandaloneWorldObjects(preferredObjects);
+
+            EditorController::setDefaultLandscapeOptions();
+            auto& options = Scenario::getOptions();
+            options.scenarioStartYear = 1950;
+            options.numberOfTowns = 20;
+            options.numberOfIndustries = 2;
+            StringManager::formatString(options.scenarioName, StringIds::unnamed);
+            Scenario::reset();
+
+            auto& gameState = getGameState();
+            gameState.rng = Core::Prng(0x12345678, 0x9ABCDEF0); // 固定亂數種子，結果可重現
+            gameState.flags &= ~GameStateFlags::tileManagerLoaded;
+            Scenario::start();
+            SceneManager::applySceneTransition();
+            if (SceneManager::getCurrentScene() != SceneManager::SceneId::gameplay)
+            {
+                Logging::error("New game did not reach the gameplay scene");
+                return false;
+            }
+
+            for (int32_t i = 0; i < ticks; i++)
+            {
+                if (SceneManager::isSceneTransitionPending())
+                {
+                    break;
+                }
+                Scenes::GameScene::tick();
+            }
+
+            S5::exportGameStateToFile(outputPath, S5::SaveFlags::none);
+            Logging::info("New game ({} ticks, date {}) saved to {}; object selection {}", ticks, getCurrentDay(),
+                          outputPath.u8string(), valid ? "valid" : "INVALID");
+            return valid;
+        }
+        catch (const std::exception& e)
+        {
+            Logging::error("Unable to create new game: {}", e.what());
+            return false;
+        }
     }
 }

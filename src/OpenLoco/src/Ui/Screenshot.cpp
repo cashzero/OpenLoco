@@ -9,6 +9,9 @@
 #include "Localisation/StringIds.h"
 #include "Map/TileManager.h"
 #include "Objects/ObjectIndex.h"
+#include "Objects/ObjectManager.h"
+#include "World/IndustryManager.h"
+#include "World/TownManager.h"
 #include "Ui.h"
 #include "Ui/WindowManager.h"
 #include <OpenLoco/Core/Exception.hpp>
@@ -348,7 +351,44 @@ namespace OpenLoco::Ui
             viewport.flags = ViewportFlags::none;
 
             World::Pos2 centre{ (World::kMapColumns / 2) * 32 + 16, (World::kMapRows / 2) * 32 + 16 };
-            if (options.centreTile.has_value())
+            if (!options.centreTarget.empty())
+            {
+                const auto& target = options.centreTarget;
+                bool found = false;
+                if (target.rfind("town:", 0) == 0)
+                {
+                    const auto n = std::stoi(target.substr(5));
+                    int i = 0;
+                    for (const auto& town : TownManager::towns())
+                    {
+                        if (i++ == n)
+                        {
+                            centre = World::Pos2(town.x, town.y);
+                            found = true;
+                            break;
+                        }
+                    }
+                }
+                else if (target.rfind("industry:", 0) == 0)
+                {
+                    const auto name = target.substr(9);
+                    for (const auto& industry : IndustryManager::industries())
+                    {
+                        const auto header = ObjectManager::getHeader({ ObjectType::industry, industry.objectId });
+                        if (Utility::iequals(Utility::trim(header.getName()), name))
+                        {
+                            centre = World::Pos2(industry.x, industry.y);
+                            found = true;
+                            break;
+                        }
+                    }
+                }
+                if (!found)
+                {
+                    throw Exception::RuntimeError("Centre target not found: " + target);
+                }
+            }
+            else if (options.centreTile.has_value())
             {
                 centre = World::Pos2(options.centreTile->first * 32 + 16, options.centreTile->second * 32 + 16);
             }
