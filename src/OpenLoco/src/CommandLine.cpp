@@ -311,7 +311,8 @@ namespace OpenLoco
                           .registerOption("--rotation", 1)
                           .registerOption("--centre", 1)
                           .registerOption("--size", 1)
-                          .registerOption("--giant");
+                          .registerOption("--giant")
+                          .registerOption("--object", 1);
 
         if (!parser.parse())
         {
@@ -406,6 +407,7 @@ namespace OpenLoco
         options.centre = parser.getArg("--centre");
         options.size = parser.getArg("--size");
         options.giant = parser.hasOption("--giant");
+        options.object = parser.getArg("--object");
 
         if (parser.hasOption("--locomotion_path"))
         {

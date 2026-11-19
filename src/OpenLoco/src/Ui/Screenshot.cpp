@@ -8,10 +8,12 @@
 #include "Localisation/FormatArguments.hpp"
 #include "Localisation/StringIds.h"
 #include "Map/TileManager.h"
+#include "Objects/ObjectIndex.h"
 #include "Ui.h"
 #include "Ui/WindowManager.h"
 #include <OpenLoco/Core/Exception.hpp>
 #include <OpenLoco/Platform/Platform.h>
+#include <OpenLoco/Utility/String.hpp>
 #include <algorithm>
 #include <cstdint>
 #include <fstream>
@@ -257,8 +259,66 @@ namespace OpenLoco::Ui
         return fileName;
     }
 
+    static void saveObjectPreviewToFile(const fs::path& path, const std::string& objectName)
+    {
+        std::optional<ObjectHeader> header;
+        const auto numObjects = ObjectManager::getNumInstalledObjects();
+        for (uint32_t i = 0; i < numObjects; i++)
+        {
+            const auto& entry = ObjectManager::getObjectInIndex(static_cast<ObjectManager::ObjectIndexId>(i));
+            if (Utility::iequals(Utility::trim(entry._header.getName()), objectName))
+            {
+                header = entry._header;
+                break;
+            }
+        }
+        if (!header.has_value())
+        {
+            throw Exception::RuntimeError("Object not found in index: " + objectName);
+        }
+
+        const auto size = Windows::ObjectSelectionWindow::getObjectPreviewSize();
+        Gfx::RenderTarget rt{};
+        rt.bits = static_cast<uint8_t*>(malloc(static_cast<size_t>(size.width) * size.height));
+        if (rt.bits == nullptr)
+        {
+            throw Exception::RuntimeError("Out of memory for object preview");
+        }
+        rt.x = 0;
+        rt.y = 0;
+        rt.width = size.width;
+        rt.height = size.height;
+        rt.pitch = 0;
+
+        auto& drawingCtx = Gfx::getDrawingEngine().getDrawingContext();
+        drawingCtx.pushRenderTarget(rt);
+        drawingCtx.clear(0x0E); // 深灰底，接近物件選擇視窗
+        const bool drawn = Windows::ObjectSelectionWindow::drawObjectPreview(*header, drawingCtx);
+        drawingCtx.popRenderTarget();
+        if (!drawn)
+        {
+            free(rt.bits);
+            throw Exception::RuntimeError("Unable to load object for preview: " + objectName);
+        }
+
+        std::fstream outputStream(path, std::ios::out | std::ios::binary);
+        if (!outputStream)
+        {
+            free(rt.bits);
+            throw Exception::RuntimeError("Unable to open preview output file");
+        }
+        saveRenderTargetToPng(rt, outputStream);
+        free(rt.bits);
+    }
+
     void saveScreenshotToFile(const fs::path& path, const HeadlessScreenshotOptions& options)
     {
+        if (!options.objectName.empty())
+        {
+            saveObjectPreviewToFile(path, options.objectName);
+            return;
+        }
+
         WindowManager::setCurrentRotation(options.rotation & 3);
         // Ensure sprites appear regardless of rotation
         EntityManager::resetSpatialIndex();

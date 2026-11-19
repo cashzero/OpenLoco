@@ -60,6 +60,7 @@ namespace OpenLoco
         std::cout << "--centre                    For screenshot, centre tile \"x,y\" (default: saved view)" << std::endl;
         std::cout << "--size                      For screenshot, image size \"WxH\" (default 1280x720)" << std::endl;
         std::cout << "--giant                     For screenshot, render the whole map" << std::endl;
+        std::cout << "--object                    For screenshot, render the named object's selection preview instead" << std::endl;
     }
 
     static int uncompressFile(const CommandLineOptions& options)
@@ -279,6 +280,7 @@ namespace OpenLoco
         ssOptions.zoom = static_cast<int8_t>(options.zoom.value_or(0));
         ssOptions.rotation = static_cast<int8_t>(options.rotation.value_or(0));
         ssOptions.giant = options.giant;
+        ssOptions.objectName = options.object;
         if (!options.size.empty())
         {
             int32_t w = 0, h = 0;

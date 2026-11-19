@@ -3,6 +3,7 @@
 #include <OpenLoco/Core/FileSystem.hpp>
 #include <cstdint>
 #include <optional>
+#include <string>
 #include <utility>
 
 namespace OpenLoco::Ui
@@ -25,6 +26,7 @@ namespace OpenLoco::Ui
         int8_t rotation = 0; // 0..3
         std::optional<std::pair<int32_t, int32_t>> centreTile{}; // 未指定時用主視窗中心，再不行用地圖中心
         bool giant = false;  // 整張地圖
+        std::string objectName{}; // 有指定時改為輸出該物件的預覽圖（物件選擇視窗的樣式）
     };
 
     void saveScreenshotToFile(const fs::path& path, const HeadlessScreenshotOptions& options);

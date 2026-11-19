@@ -13,10 +13,12 @@ namespace OpenLoco
 {
     enum class LoadOrQuitMode : uint16_t;
     enum class ObjectType : uint8_t;
+    struct ObjectHeader;
 }
 namespace OpenLoco::Gfx
 {
     struct RenderTarget;
+    class DrawingContext;
 }
 namespace OpenLoco::Input
 {
@@ -317,6 +319,10 @@ namespace OpenLoco::Ui::Windows
         Window* open();
         Window& openInTab(ObjectType objectType);
         bool tryCloseWindow();
+
+        // OpenGraphics fork：headless 物件預覽（與物件選擇視窗相同的繪製方式）
+        Ui::Size getObjectPreviewSize();
+        bool drawObjectPreview(const ObjectHeader& header, Gfx::DrawingContext& drawingCtx);
     }
 
     namespace Options

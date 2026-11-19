@@ -1725,4 +1725,26 @@ namespace OpenLoco::Ui::Windows::ObjectSelectionWindow
     {
         return kEvents;
     }
+
+    Ui::Size getObjectPreviewSize()
+    {
+        return kObjectPreviewSize;
+    }
+
+    bool drawObjectPreview(const ObjectHeader& header, Gfx::DrawingContext& drawingCtx)
+    {
+        if (!ObjectManager::loadTemporaryObject(header).has_value())
+        {
+            return false;
+        }
+        auto* temporaryObject = ObjectManager::getTemporaryObject();
+        if (temporaryObject == nullptr)
+        {
+            ObjectManager::freeTemporaryObject();
+            return false;
+        }
+        drawPreviewImage(header, drawingCtx, kObjectPreviewOffset.x, kObjectPreviewOffset.y, *temporaryObject);
+        ObjectManager::freeTemporaryObject();
+        return true;
+    }
 }

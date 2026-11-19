@@ -40,6 +40,7 @@ namespace OpenLoco
         std::string centre;
         std::string size;
         bool giant = false;
+        std::string object;
     };
 
     std::optional<CommandLineOptions> parseCommandLine(std::vector<std::string>&& argv);

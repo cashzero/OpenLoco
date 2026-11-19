@@ -89,6 +89,11 @@ namespace OpenLoco::Platform
 
     fs::path getUserDirectory()
     {
+        // OpenGraphics fork：OPENLOCO_USER_DIR 直接指定使用者目錄（測試環境隔離用）
+        if (auto overrideDir = fs::path(getEnvironmentVariable("OPENLOCO_USER_DIR")); !overrideDir.empty())
+        {
+            return overrideDir;
+        }
         auto path = fs::path(getEnvironmentVariable("XDG_CONFIG_HOME"));
         if (path.empty())
         {
