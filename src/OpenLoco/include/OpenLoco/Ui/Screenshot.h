@@ -30,4 +30,7 @@ namespace OpenLoco::Ui
     };
 
     void saveScreenshotToFile(const fs::path& path, const HeadlessScreenshotOptions& options);
+
+    // 把目前整個畫面（含 UI 視窗）存成 PNG
+    void saveScreenToFile(const fs::path& path);
 }

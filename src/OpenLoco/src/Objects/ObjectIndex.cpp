@@ -1116,9 +1116,21 @@ namespace OpenLoco::ObjectManager
 
     constexpr std::array<ObjectHeader, 1> kDefaultObjects = { ObjectHeader{ static_cast<uint32_t>(enumValue(ObjectType::region)), { 'R', 'E', 'G', 'U', 'S', ' ', ' ', ' ' }, 0U } };
 
+    // OpenGraphics fork：預設 region 優先使用 OpenGraphics 的 OGREGUS
+    constexpr ObjectHeader kDefaultOpenGraphicsRegion = ObjectHeader{
+        static_cast<uint32_t>(enumValue(ObjectType::region)) | (static_cast<uint32_t>(SourceGame::openLoco) << 6),
+        { 'O', 'G', 'R', 'E', 'G', 'U', 'S', ' ' },
+        0U
+    };
+
     // 0x00472D19
     static void selectDefaultObjects(ObjectIndexSelection& selection)
     {
+        if (isObjectInstalled(kDefaultOpenGraphicsRegion))
+        {
+            selection.selectObject(SelectObjectModes::defaultSelect, kDefaultOpenGraphicsRegion);
+            return;
+        }
         for (const auto& header : kDefaultObjects)
         {
             selection.selectObject(SelectObjectModes::defaultSelect, header);

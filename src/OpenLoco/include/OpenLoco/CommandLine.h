@@ -41,6 +41,7 @@ namespace OpenLoco
         std::string size;
         bool giant = false;
         std::string object;
+        std::optional<int32_t> exitAfterFrames{};
     };
 
     std::optional<CommandLineOptions> parseCommandLine(std::vector<std::string>&& argv);

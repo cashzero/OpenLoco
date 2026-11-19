@@ -64,10 +64,28 @@ namespace OpenLoco::Environment
         return fs::path();
     }
 
+    // OpenGraphics fork：standalone 模式使用 <data 目錄>/base（與 Locomotion 安裝目錄相同的結構，至少要有 Data/g1.DAT）
+    static fs::path getStandaloneBasePath()
+    {
+        return Platform::getDataDirectory() / "base";
+    }
+
     static fs::path resolveLocoInstallPath()
     {
         autoCreateDirectory(Platform::getUserDirectory());
         auto& cfg = Config::get();
+
+        // OPENLOCO_STANDALONE=1：不使用 Locomotion，強制使用 OpenGraphics 的 base 資料
+        if (Platform::getEnvironmentVariable("OPENLOCO_STANDALONE") == "1")
+        {
+            const auto standalonePath = getStandaloneBasePath();
+            if (validateLocoInstallPath(standalonePath))
+            {
+                Logging::info("Standalone mode forced, using OpenGraphics base data: {}", standalonePath.u8string());
+                return standalonePath;
+            }
+            Logging::error("OPENLOCO_STANDALONE is set but {} does not contain Data/g1.DAT", standalonePath.u8string());
+        }
 
         // Validate any existing configured install path first
         auto path = fs::u8path(cfg.locoInstallPath);
@@ -87,6 +105,16 @@ namespace OpenLoco::Environment
             cfg.locoInstallPath = path.make_preferred().u8string();
             Config::write();
             return path;
+        }
+
+        // 找不到 Locomotion：改用 OpenGraphics 的 base 資料（standalone），不跳出詢問視窗
+        {
+            const auto standalonePath = getStandaloneBasePath();
+            if (validateLocoInstallPath(standalonePath))
+            {
+                Logging::info("Locomotion not found, using OpenGraphics base data (standalone): {}", standalonePath.u8string());
+                return standalonePath;
+            }
         }
 
         Logging::error("Unable to automatically find the Locomotion game folder.\n"

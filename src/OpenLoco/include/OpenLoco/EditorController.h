@@ -16,6 +16,7 @@ namespace OpenLoco::EditorController
 
     void init();
     void showEditor();
+    void setDefaultLandscapeOptions();
 
     Step getCurrentStep();
 

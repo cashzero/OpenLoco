@@ -39,6 +39,41 @@ namespace OpenLoco::EditorController
 {
     static void resetLandDistributionPatterns();
 
+    // OpenGraphics fork：從 init() 抽出，標題畫面的替代地圖生成也會用到
+    void setDefaultLandscapeOptions()
+    {
+        auto& options = Scenario::getOptions();
+        auto& gameState = getGameState();
+
+        options.scenarioStartYear = 1900;
+        gameState.seaLevel = 4;
+        options.minLandHeight = 2;
+        options.topographyStyle = Scenario::TopographyStyle::mountains;
+        options.hillDensity = 50;
+        options.numberOfForests = 100;
+        options.minForestRadius = 4;
+        options.maxForestRadius = 40;
+        options.minForestDensity = 1;
+        options.maxForestDensity = 7;
+        options.numberRandomTrees = 1000;
+        options.minAltitudeForTrees = 0;
+        options.maxAltitudeForTrees = 25;
+        options.numberOfTowns = 55;
+        options.maxTownSize = 3;
+        options.numberOfIndustries = 1;
+
+        resetLandDistributionPatterns();
+
+        // New in OpenLoco
+        options.generator = Scenario::LandGeneratorType::Original;
+        options.numTerrainSmoothingPasses = 2;
+        options.numRiverbeds = 0;
+        options.minRiverWidth = 10;
+        options.maxRiverWidth = 20;
+        options.riverbankWidth = 5;
+        options.riverMeanderRate = 10;
+    }
+
     // 0x0043D7DC
     void init()
     {
@@ -68,24 +103,7 @@ namespace OpenLoco::EditorController
         ObjectManager::reloadAll();
         Scenario::sub_4748D4();
 
-        options.scenarioStartYear = 1900;
-        gameState.seaLevel = 4;
-        options.minLandHeight = 2;
-        options.topographyStyle = Scenario::TopographyStyle::mountains;
-        options.hillDensity = 50;
-        options.numberOfForests = 100;
-        options.minForestRadius = 4;
-        options.maxForestRadius = 40;
-        options.minForestDensity = 1;
-        options.maxForestDensity = 7;
-        options.numberRandomTrees = 1000;
-        options.minAltitudeForTrees = 0;
-        options.maxAltitudeForTrees = 25;
-        options.numberOfTowns = 55;
-        options.maxTownSize = 3;
-        options.numberOfIndustries = 1;
-
-        resetLandDistributionPatterns();
+        setDefaultLandscapeOptions();
         Scenario::reset();
 
         gameState.maxCompetingCompanies = 8;
@@ -118,15 +136,6 @@ namespace OpenLoco::EditorController
         Audio::resetMusic();
         Gfx::loadDefaultPalette();
         Gfx::invalidateScreen();
-
-        // New in OpenLoco
-        options.generator = Scenario::LandGeneratorType::Original;
-        options.numTerrainSmoothingPasses = 2;
-        options.numRiverbeds = 0;
-        options.minRiverWidth = 10;
-        options.maxRiverWidth = 20;
-        options.riverbankWidth = 5;
-        options.riverMeanderRate = 10;
 
         SceneManager::resetSceneAge();
         SceneManager::requestScene(SceneManager::SceneId::editor);

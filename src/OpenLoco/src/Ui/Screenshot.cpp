@@ -389,4 +389,15 @@ namespace OpenLoco::Ui
         saveRenderTargetToPng(rt, outputStream);
         free(rt.bits);
     }
+
+    void saveScreenToFile(const fs::path& path)
+    {
+        auto& rt = Gfx::getDrawingEngine().getScreenRT();
+        std::fstream outputStream(path, std::ios::out | std::ios::binary);
+        if (!outputStream)
+        {
+            throw Exception::RuntimeError("Unable to open screen output file");
+        }
+        saveRenderTargetToPng(rt, outputStream);
+    }
 }

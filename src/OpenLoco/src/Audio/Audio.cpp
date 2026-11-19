@@ -11,6 +11,7 @@
 #include "Objects/SoundObject.h"
 #include "SceneManager.h"
 #include "Ui/WindowManager.h"
+#include <set>
 #include <OpenLoco/Audio/AudioEngine.h>
 #include <OpenLoco/Core/Exception.hpp>
 #include <OpenLoco/Core/FileStream.h>
@@ -88,6 +89,9 @@ namespace OpenLoco::Audio
         }
     }
 
+    // OpenGraphics fork：缺少的音樂／環境音檔只警告一次，之後安靜略過（standalone 時沒有 vanilla 音訊）
+    static std::set<PathId> _unavailableMusicSamples;
+
     std::optional<BufferId> loadMusicSample(PathId asset)
     {
         auto res = _musicSamples.find(asset);
@@ -95,8 +99,18 @@ namespace OpenLoco::Audio
         {
             return res->second;
         }
+        if (_unavailableMusicSamples.contains(asset))
+        {
+            return std::nullopt;
+        }
 
-        const auto path = Environment::getPath(asset);
+        const auto path = Environment::getPathNoWarning(asset);
+        if (!fs::exists(path))
+        {
+            Logging::warn("Music sample '{}' not found, it will be silent", path);
+            _unavailableMusicSamples.insert(asset);
+            return std::nullopt;
+        }
         try
         {
             FileStream fs(path, StreamMode::read);
@@ -160,6 +174,7 @@ namespace OpenLoco::Audio
         catch (const std::exception& ex)
         {
             Logging::error("Unable to load music sample '{}': {}", path, ex.what());
+            _unavailableMusicSamples.insert(asset);
             return std::nullopt;
         }
     }

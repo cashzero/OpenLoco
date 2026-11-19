@@ -1,25 +1,33 @@
 #include "Title.h"
 #include "Audio/Audio.h"
 #include "Config.h"
+#include "Date.h"
+#include "EditorController.h"
 #include "Environment.h"
 #include "Game.h"
 #include "GameCommands/GameCommands.h"
 #include "GameCommands/General/TogglePause.h"
 #include "GameState.h"
 #include "GameStateFlags.h"
+#include "Graphics/Gfx.h"
 #include "Gui.h"
 #include "Intro.h"
 #include "Map/TileManager.h"
 #include "MessageManager.h"
+#include "Objects/ClimateObject.h"
 #include "Objects/ObjectIndex.h"
 #include "Objects/ObjectManager.h"
 #include "OpenLoco.h"
 #include "S5/S5.h"
 #include "Scenario/Scenario.h"
+#include "Scenario/ScenarioOptions.h"
 #include "SceneManager.h"
 #include "Ui/WindowManager.h"
 #include "World/CompanyManager.h"
 
+#include <OpenLoco/Diagnostics/Logging.h>
+#include <array>
+#include <optional>
 #include <variant>
 #include <vector>
 
@@ -80,6 +88,97 @@ namespace OpenLoco::Title
     static TitleSequence::const_iterator _sequenceIterator;
     static uint16_t _waitCounter;
 
+    // OpenGraphics fork：沒有 title.dat 時（standalone），用已安裝的物件生成標題畫面用的地圖
+    static bool _isGeneratedTitleWorld = false;
+
+    // 選積雪最少（夏季雪線最高）的氣候，標題畫面比較好看
+    static void selectLeastSnowyClimate(ObjectManager::ObjectIndexSelection& selection)
+    {
+        std::optional<ObjectHeader> best;
+        int32_t bestSnowLine = -1;
+        for (const auto& entry : ObjectManager::getAvailableObjects(ObjectType::climate))
+        {
+            if (!ObjectManager::loadTemporaryObject(entry.object._header).has_value())
+            {
+                continue;
+            }
+            const auto* climate = reinterpret_cast<const ClimateObject*>(ObjectManager::getTemporaryObject());
+            if (climate != nullptr && climate->summerSnowLine > bestSnowLine)
+            {
+                bestSnowLine = climate->summerSnowLine;
+                best = entry.object._header;
+            }
+            ObjectManager::freeTemporaryObject();
+        }
+        if (best.has_value())
+        {
+            selection.selectObject(ObjectManager::SelectObjectModes::defaultSelect, *best);
+        }
+    }
+
+    static void selectGeneratedTitleObjects(ObjectManager::ObjectIndexSelection& selection)
+    {
+        using ObjectManager::SelectObjectModes;
+        if (selection.selectionMetaData.numSelectedObjects[enumValue(ObjectType::climate)] == 0)
+        {
+            selectLeastSnowyClimate(selection);
+        }
+        // 物件選擇驗證要求的類型，各選一個
+        constexpr std::array kRequiredTypes = {
+            ObjectType::region, ObjectType::scaffolding, ObjectType::industry, ObjectType::building,
+            ObjectType::interfaceSkin, ObjectType::vehicle, ObjectType::land, ObjectType::currency,
+            ObjectType::water, ObjectType::townNames, ObjectType::levelCrossing, ObjectType::streetLight,
+            ObjectType::snow, ObjectType::climate, ObjectType::hillShapes, ObjectType::cliffEdge,
+        };
+        for (const auto type : kRequiredTypes)
+        {
+            if (selection.selectionMetaData.numSelectedObjects[enumValue(type)] != 0)
+            {
+                continue;
+            }
+            for (const auto& entry : ObjectManager::getAvailableObjects(type))
+            {
+                if (selection.selectObject(SelectObjectModes::defaultSelect, entry.object._header))
+                {
+                    break;
+                }
+            }
+        }
+        // 讓地圖豐富一些：全部的地形、樹、建築、圍牆、道路
+        constexpr std::array kAllOfTypes = { ObjectType::land, ObjectType::tree, ObjectType::building, ObjectType::wall, ObjectType::road };
+        for (const auto type : kAllOfTypes)
+        {
+            for (const auto& entry : ObjectManager::getAvailableObjects(type))
+            {
+                selection.selectObject(SelectObjectModes::defaultSelect, entry.object._header);
+            }
+        }
+    }
+
+    static void generateTitleWorld()
+    {
+        Diagnostics::Logging::info("Title save not found: generating a title landscape from installed objects");
+
+        ObjectManager::unloadAll();
+        auto& selection = ObjectManager::prepareSelectionList(false);
+        selectGeneratedTitleObjects(selection);
+        ObjectManager::loadSelectionListObjects(selection.objectFlags);
+        ObjectManager::freeSelectionList();
+        ObjectManager::reloadAll();
+        Scenario::sub_4748D4();
+
+        EditorController::setDefaultLandscapeOptions();
+        Scenario::getOptions().topographyStyle = Scenario::TopographyStyle::smallHills;
+        Scenario::reset();
+        // 夏天：避免標題畫面整片積雪
+        Scenario::initialiseDate(1950, MonthId::july, 1);
+        Scenario::initialiseSnowLine();
+        Scenario::generateLandscape();
+        Gfx::loadDefaultPalette();
+        Gfx::invalidateScreen();
+        _isGeneratedTitleWorld = true;
+    }
+
     // 0x004442C4
     static void loadTitle()
     {
@@ -87,8 +186,18 @@ namespace OpenLoco::Title
         if (Intro::state() == Intro::State::none)
         {
             uint16_t backupWord = getGameState().var_014A;
-            auto titlePath = Environment::getPath(Environment::PathId::title);
+            auto titlePath = Environment::getPathNoWarning(Environment::PathId::title);
             SceneManager::removeSceneFlags(SceneManager::Flags::networked);
+            if (!fs::exists(titlePath))
+            {
+                // 標題序列會定期 reload；生成過一次就沿用同一張地圖
+                if (!_isGeneratedTitleWorld)
+                {
+                    generateTitleWorld();
+                }
+                getGameState().var_014A = backupWord;
+                return;
+            }
             S5::importSaveToGameState(titlePath, S5::LoadFlags::titleSequence);
 
             CompanyManager::setControllingId(CompanyId(0));

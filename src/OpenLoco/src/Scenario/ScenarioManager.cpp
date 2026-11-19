@@ -150,6 +150,11 @@ namespace OpenLoco::ScenarioManager
     {
         ScenarioFolderState currentState;
         const auto scenarioPath = Environment::getPathNoWarning(Environment::PathId::scenarios);
+        // OpenGraphics fork：standalone 時可能沒有 Scenarios 資料夾
+        if (!fs::is_directory(scenarioPath))
+        {
+            return currentState;
+        }
         for (const auto& file : fs::directory_iterator(scenarioPath, fs::directory_options::skip_permission_denied))
         {
             if (!file.is_regular_file())
@@ -303,7 +308,14 @@ namespace OpenLoco::ScenarioManager
 
         const auto scenarioPath = Environment::getPathNoWarning(Environment::PathId::scenarios);
         auto numScenariosDetected = 0;
-        for (const auto& file : fs::directory_iterator(scenarioPath, fs::directory_options::skip_permission_denied))
+        std::error_code scenarioDirError;
+        auto scenarioDir = fs::directory_iterator(scenarioPath, fs::directory_options::skip_permission_denied, scenarioDirError);
+        if (scenarioDirError)
+        {
+            // OpenGraphics fork：standalone 時可能沒有 Scenarios 資料夾
+            scenarioDir = fs::directory_iterator{};
+        }
+        for (const auto& file : scenarioDir)
         {
             if (!file.is_regular_file())
             {
@@ -318,7 +330,12 @@ namespace OpenLoco::ScenarioManager
         }
 
         auto currentScenarioOffset = 0;
-        for (const auto& file : fs::directory_iterator(scenarioPath, fs::directory_options::skip_permission_denied))
+        scenarioDir = fs::directory_iterator(scenarioPath, fs::directory_options::skip_permission_denied, scenarioDirError);
+        if (scenarioDirError)
+        {
+            scenarioDir = fs::directory_iterator{};
+        }
+        for (const auto& file : scenarioDir)
         {
             if (!file.is_regular_file())
             {

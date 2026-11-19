@@ -61,6 +61,7 @@ namespace OpenLoco
         std::cout << "--size                      For screenshot, image size \"WxH\" (default 1280x720)" << std::endl;
         std::cout << "--giant                     For screenshot, render the whole map" << std::endl;
         std::cout << "--object                    For screenshot, render the named object's selection preview instead" << std::endl;
+        std::cout << "--exit-after-frames         Run the game for N frames, save the screen to -o (if given) and exit" << std::endl;
     }
 
     static int uncompressFile(const CommandLineOptions& options)
@@ -251,7 +252,7 @@ namespace OpenLoco
     }
 
     // 0x00406386
-    static void run()
+    static void run(const CommandLineOptions& options)
     {
         auto& cfg = Config::get();
 
@@ -265,6 +266,17 @@ namespace OpenLoco
         while (Input::processMessages())
         {
             update();
+
+            // OpenGraphics fork：畫完指定的畫面數後存下整個畫面並結束（自動化測試用）
+            if (options.exitAfterFrames.has_value() && getRenderedFrameCount() >= static_cast<uint32_t>(*options.exitAfterFrames))
+            {
+                if (!options.outputPath.empty())
+                {
+                    Ui::saveScreenToFile(fs::u8path(options.outputPath));
+                    Logging::info("Screen saved to {}", options.outputPath);
+                }
+                break;
+            }
         }
     }
 
@@ -377,7 +389,7 @@ namespace OpenLoco
 
         try
         {
-            run();
+            run(options);
             exitCleanly();
         }
         catch (const std::exception& e)

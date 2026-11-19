@@ -354,6 +354,9 @@ namespace OpenLoco
         return true;
     }
 
+    // OpenGraphics fork：給 --exit-after-frames 使用
+    static uint32_t _renderedFrameCount = 0;
+
     constexpr auto MaxUpdateTime = static_cast<double>(Engine::MaxTimeDeltaMs) / 1000.0;
     constexpr auto UpdateTime = static_cast<double>(Engine::UpdateRateInMs) / 1000.0;
     constexpr auto TimeScale = 1.0;
@@ -379,6 +382,7 @@ namespace OpenLoco
         SceneManager::update();
 
         Ui::render();
+        _renderedFrameCount++;
     }
 
     static void fixedUpdate()
@@ -398,7 +402,13 @@ namespace OpenLoco
             SceneManager::update();
 
             Ui::render();
+            _renderedFrameCount++;
         }
+    }
+
+    uint32_t getRenderedFrameCount()
+    {
+        return _renderedFrameCount;
     }
 
     void update()

@@ -312,7 +312,8 @@ namespace OpenLoco
                           .registerOption("--centre", 1)
                           .registerOption("--size", 1)
                           .registerOption("--giant")
-                          .registerOption("--object", 1);
+                          .registerOption("--object", 1)
+                          .registerOption("--exit-after-frames", 1);
 
         if (!parser.parse())
         {
@@ -408,6 +409,7 @@ namespace OpenLoco
         options.size = parser.getArg("--size");
         options.giant = parser.hasOption("--giant");
         options.object = parser.getArg("--object");
+        options.exitAfterFrames = parser.getArg<int32_t>("--exit-after-frames");
 
         if (parser.hasOption("--locomotion_path"))
         {
