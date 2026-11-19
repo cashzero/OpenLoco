@@ -1138,7 +1138,7 @@ namespace OpenLoco::ObjectManager
     }
 
     // 0x00473A95
-    ObjectIndexSelection& prepareSelectionList(bool markInUse)
+    ObjectIndexSelection& prepareSelectionList(bool markInUse, bool selectDefaults)
     {
         _objectIndexSelectionRefCount++;
         if (_objectIndexSelectionRefCount != 1)
@@ -1163,7 +1163,10 @@ namespace OpenLoco::ObjectManager
         }
         resetSelectedObjectCountsAndSize(_objectIndexSelection);
         selectRequiredObjects(_objectIndexSelection); // nop
-        selectDefaultObjects(_objectIndexSelection);
+        if (selectDefaults)
+        {
+            selectDefaultObjects(_objectIndexSelection);
+        }
         refreshRequiredByAnother(objectFlags);
         resetSelectedObjectCountsAndSize(_objectIndexSelection);
         return _objectIndexSelection;

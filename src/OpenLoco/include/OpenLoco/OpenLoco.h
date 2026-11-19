@@ -4,6 +4,7 @@
 #include <cstdint>
 #include <functional>
 #include <string>
+#include <vector>
 
 namespace OpenLoco::Ui
 {
@@ -25,6 +26,7 @@ namespace OpenLoco
     void* hInstance();
     void resetSubsystems();
     bool simulateGame(const fs::path& path, int32_t ticks);
+    bool newGame(const fs::path& outputPath, int32_t ticks, const std::vector<std::string>& preferredObjects);
     bool screenshotGame(const fs::path& path, int32_t ticks, const fs::path& outputPath, const Ui::HeadlessScreenshotOptions& options);
 
     void initialise();

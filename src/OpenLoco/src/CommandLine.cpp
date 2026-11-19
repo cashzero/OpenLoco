@@ -313,7 +313,8 @@ namespace OpenLoco
                           .registerOption("--size", 1)
                           .registerOption("--giant")
                           .registerOption("--object", 1)
-                          .registerOption("--exit-after-frames", 1);
+                          .registerOption("--exit-after-frames", 1)
+                          .registerOption("--select", 1);
 
         if (!parser.parse())
         {
@@ -358,6 +359,11 @@ namespace OpenLoco
                 options.path = parser.getArg(1);
                 options.ticks = parser.getArg<int32_t>(2);
                 options.path2 = parser.getArg(3);
+            }
+            else if (firstArg == "new-game")
+            {
+                options.action = CommandLineAction::newGame;
+                options.ticks = parser.getArg<int32_t>(1);
             }
             else if (firstArg == "screenshot")
             {
@@ -410,6 +416,7 @@ namespace OpenLoco
         options.giant = parser.hasOption("--giant");
         options.object = parser.getArg("--object");
         options.exitAfterFrames = parser.getArg<int32_t>("--exit-after-frames");
+        options.select = parser.getArg("--select");
 
         if (parser.hasOption("--locomotion_path"))
         {

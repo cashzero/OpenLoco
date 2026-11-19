@@ -86,7 +86,8 @@ namespace OpenLoco::ObjectManager
         bool selectObject(SelectObjectModes mode, const ObjectHeader& objHeader);
     };
 
-    ObjectIndexSelection& prepareSelectionList(bool markInUse);
+    // selectDefaults = false：不預先選取預設物件（OpenGraphics fork：headless new-game 指定物件清單時使用）
+    ObjectIndexSelection& prepareSelectionList(bool markInUse, bool selectDefaults = true);
     ObjectIndexSelection& getCurrentSelectionList();
     void freeSelectionList();
     void markOnlyLoadedObjects(std::span<SelectedObjectsFlags> objectFlags);

@@ -19,6 +19,7 @@ namespace OpenLoco
         version,
         intro,
         screenshot,
+        newGame,
     };
 
     struct CommandLineOptions
@@ -42,6 +43,7 @@ namespace OpenLoco
         bool giant = false;
         std::string object;
         std::optional<int32_t> exitAfterFrames{};
+        std::string select;
     };
 
     std::optional<CommandLineOptions> parseCommandLine(std::vector<std::string>&& argv);
