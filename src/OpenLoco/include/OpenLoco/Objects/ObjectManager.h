@@ -164,6 +164,7 @@ namespace OpenLoco::ObjectManager
     std::optional<LoadedObjectHandle> findObjectHandleFuzzy(const ObjectHeader& header);
     void reloadAll();
     ObjectHeader& getHeader(const LoadedObjectHandle& handle);
+    std::string_view getCurrentlyLoadingObjectName();
     std::vector<ObjectHeader> getHeaders();
 
     LoadObjectsResult loadAll(std::span<ObjectHeader> objects);

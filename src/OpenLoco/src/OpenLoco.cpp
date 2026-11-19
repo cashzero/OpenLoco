@@ -50,6 +50,7 @@
 #include "Tutorial.h"
 #include "Ui.h"
 #include "Ui/ProgressBar.h"
+#include "Ui/Screenshot.h"
 #include "Ui/ToolTip.h"
 #include "Ui/WindowManager.h"
 #include "Vehicles/Vehicle.h"
@@ -430,7 +431,7 @@ namespace OpenLoco
         return _numFrameUpdates;
     }
 
-    void simulateGame(const fs::path& savePath, int32_t ticks)
+    bool simulateGame(const fs::path& savePath, int32_t ticks)
     {
         try
         {
@@ -448,7 +449,7 @@ namespace OpenLoco
         if (SceneManager::getCurrentScene() != SceneManager::SceneId::gameplay)
         {
             Logging::error("Unable to simulate park!");
-            return;
+            return false;
         }
 
         Logging::info("File loaded. Starting simulation.");
@@ -462,6 +463,48 @@ namespace OpenLoco
 
             Scenes::GameScene::tick();
         }
+        return true;
     }
 
+
+    bool screenshotGame(const fs::path& savePath, int32_t ticks, const fs::path& outputPath, const Ui::HeadlessScreenshotOptions& options)
+    {
+        try
+        {
+            initialise();
+            Scenes::BootScene::loadFile(savePath);
+            SceneManager::applySceneTransition();
+        }
+        catch (const std::exception& e)
+        {
+            Logging::error("Unable to load {}: {}", savePath.u8string(), e.what());
+            return false;
+        }
+
+        if (SceneManager::getCurrentScene() != SceneManager::SceneId::gameplay)
+        {
+            Logging::error("Unable to load {}", savePath.u8string());
+            return false;
+        }
+
+        for (int32_t i = 0; i < ticks; i++)
+        {
+            if (SceneManager::isSceneTransitionPending())
+            {
+                break;
+            }
+            Scenes::GameScene::tick();
+        }
+
+        try
+        {
+            Ui::saveScreenshotToFile(outputPath, options);
+        }
+        catch (const std::exception& e)
+        {
+            Logging::error("Unable to save screenshot: {}", e.what());
+            return false;
+        }
+        return true;
+    }
 }

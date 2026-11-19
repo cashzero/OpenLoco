@@ -306,7 +306,12 @@ namespace OpenLoco
                           .registerOption("--intro")
                           .registerOption("--log_levels", 1)
                           .registerOption("--all", "-a")
-                          .registerOption("--locomotion_path", 1);
+                          .registerOption("--locomotion_path", 1)
+                          .registerOption("--zoom", 1)
+                          .registerOption("--rotation", 1)
+                          .registerOption("--centre", 1)
+                          .registerOption("--size", 1)
+                          .registerOption("--giant");
 
         if (!parser.parse())
         {
@@ -352,6 +357,12 @@ namespace OpenLoco
                 options.ticks = parser.getArg<int32_t>(2);
                 options.path2 = parser.getArg(3);
             }
+            else if (firstArg == "screenshot")
+            {
+                options.action = CommandLineAction::screenshot;
+                options.path = parser.getArg(1);
+                options.ticks = parser.getArg<int32_t>(2);
+            }
             else if (firstArg == "compare")
             {
                 options.action = CommandLineAction::compare;
@@ -389,6 +400,12 @@ namespace OpenLoco
         {
             options.logLevels = "info, warning, error";
         }
+
+        options.zoom = parser.getArg<int32_t>("--zoom");
+        options.rotation = parser.getArg<int32_t>("--rotation");
+        options.centre = parser.getArg("--centre");
+        options.size = parser.getArg("--size");
+        options.giant = parser.hasOption("--giant");
 
         if (parser.hasOption("--locomotion_path"))
         {

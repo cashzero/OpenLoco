@@ -551,7 +551,7 @@ namespace OpenLoco
             else
             {
                 // This is a bad object! But will keep loading
-                Logging::error("Object has too few images for body sprites!");
+                Logging::error("Object {} has too few images for body sprites!", ObjectManager::getCurrentlyLoadingObjectName());
                 bodySprite.flatImageId = ImageId::kIndexUndefined;
                 bodySprite.gentleImageId = ImageId::kIndexUndefined;
                 bodySprite.steepImageId = ImageId::kIndexUndefined;
@@ -596,7 +596,7 @@ namespace OpenLoco
             else
             {
                 // This is a bad object! But we will keep loading anyway!
-                Logging::error("Object has too few images for bogie sprites!");
+                Logging::error("Object {} has too few images for bogie sprites!", ObjectManager::getCurrentlyLoadingObjectName());
                 bogieSprite.flatImageIds = ImageId::kIndexUndefined;
                 bogieSprite.gentleImageIds = ImageId::kIndexUndefined;
                 bogieSprite.steepImageIds = ImageId::kIndexUndefined;

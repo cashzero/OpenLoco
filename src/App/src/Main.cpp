@@ -14,6 +14,7 @@
 #include <OpenLoco/Platform/Platform.h>
 #include <OpenLoco/S5/S5.h>
 #include <OpenLoco/S5/SawyerStream.h>
+#include <OpenLoco/Ui/Screenshot.h>
 #include <OpenLoco/Version.hpp>
 #include <SDL3/SDL_main.h>
 #include <fmt/chrono.h>
@@ -38,6 +39,7 @@ namespace OpenLoco
         std::cout << "                uncompress [options] <path>" << std::endl;
         std::cout << "                simulate [options] <path> <ticks> [path]" << std::endl;
         std::cout << "                compare [options] <path1> <path2>" << std::endl;
+        std::cout << "                screenshot [options] <path> [ticks] -o <png>" << std::endl;
         std::cout << std::endl;
         std::cout << "options:" << std::endl;
         std::cout << "--bind                     Address to bind to when hosting a server" << std::endl;
@@ -53,6 +55,11 @@ namespace OpenLoco
         std::cout << "                              Default: \"info, warning, error\"" << std::endl;
         std::cout << "--all                -a     For compare, print out all divergences" << std::endl;
         std::cout << "--locomotion_path           Overrides the path to Locomotion install." << std::endl;
+        std::cout << "--zoom                      For screenshot, zoom level 0-3 (default 0)" << std::endl;
+        std::cout << "--rotation                  For screenshot, view rotation 0-3 (default 0)" << std::endl;
+        std::cout << "--centre                    For screenshot, centre tile \"x,y\" (default: saved view)" << std::endl;
+        std::cout << "--size                      For screenshot, image size \"WxH\" (default 1280x720)" << std::endl;
+        std::cout << "--giant                     For screenshot, render the whole map" << std::endl;
     }
 
     static int uncompressFile(const CommandLineOptions& options)
@@ -158,7 +165,10 @@ namespace OpenLoco
 
         try
         {
-            OpenLoco::simulateGame(inPath, *options.ticks);
+            if (!OpenLoco::simulateGame(inPath, *options.ticks))
+            {
+                return EXIT_FAILURE;
+            }
         }
         catch (...)
         {
@@ -257,6 +267,50 @@ namespace OpenLoco
         }
     }
 
+    static int screenshot(const CommandLineOptions& options)
+    {
+        if (options.outputPath.empty())
+        {
+            Logging::error("Output path (-o) not specified");
+            return EXIT_FAILURE;
+        }
+
+        Ui::HeadlessScreenshotOptions ssOptions{};
+        ssOptions.zoom = static_cast<int8_t>(options.zoom.value_or(0));
+        ssOptions.rotation = static_cast<int8_t>(options.rotation.value_or(0));
+        ssOptions.giant = options.giant;
+        if (!options.size.empty())
+        {
+            int32_t w = 0, h = 0;
+            if (std::sscanf(options.size.c_str(), "%dx%d", &w, &h) != 2)
+            {
+                Logging::error("Invalid --size, expected WxH");
+                return EXIT_FAILURE;
+            }
+            ssOptions.width = w;
+            ssOptions.height = h;
+        }
+        if (!options.centre.empty())
+        {
+            int32_t x = 0, y = 0;
+            if (std::sscanf(options.centre.c_str(), "%d,%d", &x, &y) != 2)
+            {
+                Logging::error("Invalid --centre, expected x,y (tiles)");
+                return EXIT_FAILURE;
+            }
+            ssOptions.centreTile = std::make_pair(x, y);
+        }
+
+        const auto inPath = fs::u8path(options.path);
+        const auto outPath = fs::u8path(options.outputPath);
+        if (!OpenLoco::screenshotGame(inPath, options.ticks.value_or(0), outPath, ssOptions))
+        {
+            return EXIT_FAILURE;
+        }
+        Logging::info("Screenshot saved to {}", outPath.u8string());
+        return EXIT_SUCCESS;
+    }
+
     static std::optional<int> runCommandLineOnlyCommand(const CommandLineOptions& options)
     {
         switch (options.action)
@@ -273,6 +327,8 @@ namespace OpenLoco
                 return simulate(options);
             case CommandLineAction::compare:
                 return compare(options);
+            case CommandLineAction::screenshot:
+                return screenshot(options);
             default:
                 return std::nullopt;
         }

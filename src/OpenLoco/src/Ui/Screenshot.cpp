@@ -107,19 +107,20 @@ namespace OpenLoco::Ui
                 throw Exception::RuntimeError("png_create_info_struct failed.");
             }
 
-            palette = (png_colorp)png_malloc(pngPtr, 246 * sizeof(png_color));
+            palette = (png_colorp)png_malloc(pngPtr, rgbaPalette.size() * sizeof(png_color));
             if (palette == nullptr)
             {
                 throw Exception::RuntimeError("png_malloc failed.");
             }
 
-            for (size_t i = 0; i < 246; i++)
+            for (size_t i = 0; i < rgbaPalette.size(); i++)
             {
                 palette[i].blue = rgbaPalette[i].b;
                 palette[i].green = rgbaPalette[i].g;
                 palette[i].red = rgbaPalette[i].r;
             }
-            png_set_PLTE(pngPtr, infoPtr, palette, 246);
+            // fork：寫入完整調色盤，避免畫面含有未套 remap 的 index（例如 placeholder）時 libpng 報錯
+            png_set_PLTE(pngPtr, infoPtr, palette, static_cast<int>(rgbaPalette.size()));
 
             png_byte transparentIndex = 0;
             png_set_tRNS(pngPtr, infoPtr, &transparentIndex, 1, nullptr);
@@ -254,5 +255,78 @@ namespace OpenLoco::Ui
         free(rt.bits);
 
         return fileName;
+    }
+
+    void saveScreenshotToFile(const fs::path& path, const HeadlessScreenshotOptions& options)
+    {
+        WindowManager::setCurrentRotation(options.rotation & 3);
+        // Ensure sprites appear regardless of rotation
+        EntityManager::resetSpatialIndex();
+
+        const auto zoomLevel = ZoomLevel{ static_cast<int8_t>(std::clamp<int32_t>(options.zoom, 0, 3)) };
+
+        uint16_t width{};
+        uint16_t height{};
+        Ui::Viewport viewport{};
+        if (options.giant)
+        {
+            width = zoomLevel.applyInversedTo(World::kMapColumns * 32 * 2) + 8;
+            height = zoomLevel.applyInversedTo(World::kMapRows * 32 * 1) + 128;
+            viewport = createGiantViewport(width, height, zoomLevel);
+        }
+        else
+        {
+            width = static_cast<uint16_t>(std::clamp<int32_t>(options.width, 16, 8192));
+            height = static_cast<uint16_t>(std::clamp<int32_t>(options.height, 16, 8192));
+            viewport.x = 0;
+            viewport.y = 0;
+            viewport.width = width;
+            viewport.height = height;
+            viewport.zoom = zoomLevel;
+            viewport.viewWidth = zoomLevel.applyTo<int32_t>(width);
+            viewport.viewHeight = zoomLevel.applyTo<int32_t>(height);
+            viewport.flags = ViewportFlags::none;
+
+            World::Pos2 centre{ (World::kMapColumns / 2) * 32 + 16, (World::kMapRows / 2) * 32 + 16 };
+            if (options.centreTile.has_value())
+            {
+                centre = World::Pos2(options.centreTile->first * 32 + 16, options.centreTile->second * 32 + 16);
+            }
+            else if (auto* mainViewport = WindowManager::getMainViewport(); mainViewport != nullptr)
+            {
+                centre = mainViewport->getCentreMapPosition();
+            }
+            const coord_t z = World::TileManager::getHeight(centre).landHeight;
+            const auto pos = viewport.centre2dCoordinates({ centre.x, centre.y, z });
+            viewport.viewX = pos.x;
+            viewport.viewY = pos.y;
+        }
+
+        Gfx::RenderTarget rt{};
+        rt.bits = static_cast<uint8_t*>(malloc(static_cast<size_t>(width) * height));
+        if (rt.bits == nullptr)
+        {
+            throw Exception::RuntimeError("Out of memory for screenshot");
+        }
+        rt.x = 0;
+        rt.y = 0;
+        rt.width = width;
+        rt.height = height;
+        rt.pitch = 0;
+
+        auto& drawingEngine = Gfx::getDrawingEngine();
+        auto& drawingCtx = drawingEngine.getDrawingContext();
+        drawingCtx.pushRenderTarget(rt);
+        viewport.render(drawingCtx);
+        drawingCtx.popRenderTarget();
+
+        std::fstream outputStream(path, std::ios::out | std::ios::binary);
+        if (!outputStream)
+        {
+            free(rt.bits);
+            throw Exception::RuntimeError("Unable to open screenshot output file");
+        }
+        saveRenderTargetToPng(rt, outputStream);
+        free(rt.bits);
     }
 }

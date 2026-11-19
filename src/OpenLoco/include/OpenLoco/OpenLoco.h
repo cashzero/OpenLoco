@@ -5,6 +5,11 @@
 #include <functional>
 #include <string>
 
+namespace OpenLoco::Ui
+{
+    struct HeadlessScreenshotOptions;
+}
+
 namespace OpenLoco
 {
     using StringId = uint16_t;
@@ -19,7 +24,8 @@ namespace OpenLoco
 
     void* hInstance();
     void resetSubsystems();
-    void simulateGame(const fs::path& path, int32_t ticks);
+    bool simulateGame(const fs::path& path, int32_t ticks);
+    bool screenshotGame(const fs::path& path, int32_t ticks, const fs::path& outputPath, const Ui::HeadlessScreenshotOptions& options);
 
     void initialise();
     void update();
