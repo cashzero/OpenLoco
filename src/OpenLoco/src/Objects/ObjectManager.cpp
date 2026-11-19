@@ -26,6 +26,7 @@
 #include "Objects/InterfaceSkinObject.h"
 #include "Objects/LandObject.h"
 #include "Objects/LevelCrossingObject.h"
+#include "Objects/ObjectAliases.h"
 #include "Objects/ObjectImageTable.h"
 #include "Objects/ObjectIndex.h"
 #include "Objects/ObjectStringTable.h"
@@ -177,7 +178,7 @@ namespace OpenLoco::ObjectManager
 
     // 0x004720EB
     // Returns std::nullopt if not loaded
-    std::optional<LoadedObjectHandle> findObjectHandle(const ObjectHeader& header)
+    static std::optional<LoadedObjectHandle> findExactObjectHandle(const ObjectHeader& header)
     {
         if ((header.flags & 0xFF) != 0xFF)
         {
@@ -197,6 +198,28 @@ namespace OpenLoco::ObjectManager
                     }
                 }
             }
+        }
+        return std::nullopt;
+    }
+
+    std::optional<LoadedObjectHandle> findObjectHandle(const ObjectHeader& header)
+    {
+        // OpenGraphics fork：引用的 vanilla 物件沒有載入（或設定優先使用）時，改找已載入的別名物件
+        const auto alias = ObjectAliases::find(header);
+        if (alias.has_value() && ObjectAliases::isPreferred())
+        {
+            if (auto res = findExactObjectHandle(*alias))
+            {
+                return res;
+            }
+        }
+        if (auto res = findExactObjectHandle(header))
+        {
+            return res;
+        }
+        if (alias.has_value())
+        {
+            return findExactObjectHandle(*alias);
         }
         return std::nullopt;
     }
@@ -445,7 +468,8 @@ namespace OpenLoco::ObjectManager
         SawyerStreamReader stream(fs);
         PreLoadedObject preLoadObj{};
         stream.read(&preLoadObj.header, sizeof(preLoadObj.header));
-        if (preLoadObj.header != header)
+        // OpenGraphics fork：比對 index 中的 header（透過別名找到的物件，其 header 與要求的不同）
+        if (preLoadObj.header != installedObject->_header)
         {
             // Something wrong has happened and installed object does not match index
             // Vanilla continued to search for subsequent matching installed headers.

@@ -20,6 +20,7 @@
 #include "Map/TrackElement.h"
 #include "Map/TreeElement.h"
 #include "Map/WallElement.h"
+#include "Objects/ObjectAliases.h"
 #include "Objects/ObjectManager.h"
 #include "Objects/RoadObject.h"
 #include "Objects/TrackObject.h"
@@ -592,7 +593,7 @@ namespace OpenLoco::ObjectManager
         return _numObjectsPerType[enumValue(type)];
     }
 
-    static std::optional<ObjIndexPair> internalFindObjectInIndex(const ObjectHeader& objectHeader)
+    static std::optional<ObjIndexPair> findExactInIndex(const ObjectHeader& objectHeader)
     {
         auto res = std::ranges::find(_installedObjectList, objectHeader, &ObjectIndexEntry::_header);
         if (res == std::end(_installedObjectList))
@@ -600,6 +601,28 @@ namespace OpenLoco::ObjectManager
             return std::nullopt;
         }
         return ObjIndexPair{ static_cast<ObjectIndexId>(std::distance(std::begin(_installedObjectList), res)), *res };
+    }
+
+    static std::optional<ObjIndexPair> internalFindObjectInIndex(const ObjectHeader& objectHeader)
+    {
+        // OpenGraphics fork：vanilla 物件找不到（或設定優先使用）時改用別名物件
+        const auto alias = ObjectAliases::find(objectHeader);
+        if (alias.has_value() && ObjectAliases::isPreferred())
+        {
+            if (auto res = findExactInIndex(*alias))
+            {
+                return res;
+            }
+        }
+        if (auto res = findExactInIndex(objectHeader))
+        {
+            return res;
+        }
+        if (alias.has_value())
+        {
+            return findExactInIndex(*alias);
+        }
+        return std::nullopt;
     }
 
     std::optional<ObjectIndexEntry> findObjectInIndex(const ObjectHeader& objectHeader)
