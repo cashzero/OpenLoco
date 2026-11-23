@@ -43,6 +43,7 @@ namespace OpenLoco
         bool giant = false;
         std::string object;
         std::optional<int32_t> exitAfterFrames{};
+        std::string openWindow; // OpenGraphics fork：--exit-after-frames 截圖前開啟的視窗（逗號分隔）
         std::string select;
     };
 

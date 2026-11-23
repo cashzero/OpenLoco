@@ -419,6 +419,61 @@ namespace OpenLoco
         return _renderedFrameCount;
     }
 
+    // OpenGraphics fork：依名稱開啟視窗，讓 --exit-after-frames 的截圖包含指定的 UI（檢查 g1 的 UI 圖用）
+    int openWindowsByName(const std::string& names)
+    {
+        using namespace Ui::Windows;
+        const auto company = CompanyManager::getControllingId();
+        int opened = 0;
+        size_t start = 0;
+        while (start <= names.size())
+        {
+            auto end = names.find(',', start);
+            if (end == std::string::npos)
+            {
+                end = names.size();
+            }
+            const auto name = names.substr(start, end - start);
+            start = end + 1;
+            if (name.empty())
+            {
+                continue;
+            }
+            bool ok = true;
+            if (name == "options") { Options::open(); }
+            else if (name == "audio") { Options::openAudioSettings(); }
+            else if (name == "objects") { ObjectSelectionWindow::open(); }
+            else if (name == "company") { CompanyWindow::open(company); }
+            else if (name == "finances") { CompanyWindow::openFinances(company); }
+            else if (name == "companies") { CompanyList::open(); }
+            else if (name == "towns") { TownList::open(); }
+            else if (name == "industries") { IndustryList::open(); }
+            else if (name == "stations") { StationList::open(company); }
+            else if (name == "trains") { VehicleList::open(company, VehicleType::train); }
+            else if (name == "terraform") { Terraform::open(); }
+            else if (name == "trees") { Terraform::openPlantTrees(); }
+            else if (name == "map") { MapWindow::open(); }
+            else if (name == "music") { MusicSelection::open(); }
+            else if (name == "messages") { MessageWindow::open(); }
+            else if (name == "about") { About::open(); }
+            else if (name == "shortcuts") { KeyboardShortcuts::open(); }
+            else if (name == "landscape") { LandscapeGeneration::open(); }
+            else if (name == "construction") { Construction::openWithFlags(0); }
+            else if (name == "roadconstruction") { Construction::openWithFlags(1U << 7); }
+            else
+            {
+                ok = false;
+                Logging::warn("--open-window: unknown window '{}'", name);
+            }
+            if (ok)
+            {
+                Logging::info("--open-window: opened '{}'", name);
+                opened++;
+            }
+        }
+        return opened;
+    }
+
     void update()
     {
         auto timeNow = Clock::now();
