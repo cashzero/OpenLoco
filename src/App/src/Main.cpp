@@ -264,9 +264,18 @@ namespace OpenLoco
 
         initialise();
 
+        bool windowsOpened = false;
         while (Input::processMessages())
         {
             update();
+
+            // OpenGraphics fork：截圖前 30 個畫面開啟 --open-window 指定的視窗（讓視窗有時間畫出來）
+            if (!windowsOpened && !options.openWindow.empty() && options.exitAfterFrames.has_value()
+                && getRenderedFrameCount() + 30 >= static_cast<uint32_t>(*options.exitAfterFrames))
+            {
+                openWindowsByName(options.openWindow);
+                windowsOpened = true;
+            }
 
             // OpenGraphics fork：畫完指定的畫面數後存下整個畫面並結束（自動化測試用）
             if (options.exitAfterFrames.has_value() && getRenderedFrameCount() >= static_cast<uint32_t>(*options.exitAfterFrames))

@@ -32,6 +32,8 @@ namespace OpenLoco
     void initialise();
     void update();
     uint32_t getRenderedFrameCount();
+    // OpenGraphics fork：依名稱開啟視窗（--open-window，給 UI 截圖用），回傳成功開啟的數量
+    int openWindowsByName(const std::string& names);
     void sub_431695(uint16_t var_F253A0);
     uint16_t getTimeSinceLastTick();
     uint16_t getNumFrameUpdates();
