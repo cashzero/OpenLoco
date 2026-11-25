@@ -98,9 +98,12 @@ namespace OpenLoco::S5
         {
             result.flags |= HeaderFlags::isDump;
         }
-        if (!hasSaveFlags(flags, SaveFlags::scenario)
-            && !hasSaveFlags(flags, SaveFlags::raw)
-            && !hasSaveFlags(flags, SaveFlags::dump))
+        if (hasSaveFlags(flags, SaveFlags::titleSequence))
+        {
+            // 與原版 title.dat 相同：有 isTitleSequence、沒有存檔資訊（預覽圖、公司名稱）
+            result.flags |= HeaderFlags::isTitleSequence;
+        }
+        else if (!hasSaveFlags(flags, SaveFlags::scenario) && !hasSaveFlags(flags, SaveFlags::raw) && !hasSaveFlags(flags, SaveFlags::dump))
         {
             result.flags |= HeaderFlags::hasSaveDetails;
         }

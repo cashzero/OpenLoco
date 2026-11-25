@@ -31,6 +31,7 @@
 #include <optional>
 #include <variant>
 #include <vector>
+#include <yaml-cpp/yaml.h>
 
 namespace OpenLoco::Title
 {
@@ -54,7 +55,19 @@ namespace OpenLoco::Title
     {
     };
 
-    using TitleStep = std::variant<WaitStep, ReloadStep, MoveStep, RotateStep, ResetStep>;
+    // OpenGraphics fork：把主視窗轉到指定的旋轉（0–3）
+    struct SetRotationStep
+    {
+        uint8_t rotation;
+    };
+
+    // OpenGraphics fork：設定主視窗的縮放等級（0 = 最近）
+    struct SetZoomStep
+    {
+        int8_t zoom;
+    };
+
+    using TitleStep = std::variant<WaitStep, ReloadStep, MoveStep, RotateStep, ResetStep, SetRotationStep, SetZoomStep>;
     using TitleSequence = std::vector<TitleStep>;
 
     static const TitleSequence _titleSequence = {
@@ -87,6 +100,48 @@ namespace OpenLoco::Title
     };
 
     static TitleSequence::const_iterator _sequenceIterator;
+
+    // OpenGraphics fork：標題存檔旁有 title.yml 時，運鏡改用其中的 camera 清單（[x, y, rotation, 停留 tick]）
+    static TitleSequence _customSequence;
+    static const TitleSequence* _activeSequence = &_titleSequence;
+
+    static void loadCustomSequence()
+    {
+        _activeSequence = &_titleSequence;
+        const auto titlePath = Environment::getPathNoWarning(Environment::PathId::title);
+        const auto cameraPath = titlePath.parent_path() / "title.yml";
+        std::error_code ec;
+        if (!fs::exists(titlePath, ec) || !fs::exists(cameraPath, ec))
+        {
+            return;
+        }
+        try
+        {
+            const auto root = YAML::LoadFile(cameraPath.string());
+            TitleSequence sequence;
+            for (const auto& shot : root["camera"])
+            {
+                // [x, y, rotation, 停留 tick, 縮放]；縮放省略時沿用 camera 的 zoom（預設 0）
+                sequence.push_back(SetZoomStep{ shot.size() > 4 ? shot[4].as<int8_t>() : (root["zoom"] ? root["zoom"].as<int8_t>() : int8_t(0)) });
+                sequence.push_back(SetRotationStep{ shot[2].as<uint8_t>() });
+                sequence.push_back(MoveStep{ shot[0].as<int32_t>(), shot[1].as<int32_t>() });
+                sequence.push_back(WaitStep{ shot.size() > 3 ? shot[3].as<uint16_t>() : uint16_t(375) });
+            }
+            if (sequence.empty())
+            {
+                return;
+            }
+            sequence.push_back(ReloadStep{ 0 });
+            sequence.push_back(ResetStep{});
+            _customSequence = std::move(sequence);
+            _activeSequence = &_customSequence;
+            Diagnostics::Logging::info("Title camera: {} shots from {}", root["camera"].size(), cameraPath.u8string());
+        }
+        catch (const std::exception& e)
+        {
+            Diagnostics::Logging::error("Unable to read {}: {}", cameraPath.u8string(), e.what());
+        }
+    }
     static uint16_t _waitCounter;
 
     // OpenGraphics fork：沒有 title.dat 時（standalone），用已安裝的物件生成標題畫面用的地圖
@@ -126,10 +181,22 @@ namespace OpenLoco::Title
         }
         // 物件選擇驗證要求的類型，各選一個
         constexpr std::array kRequiredTypes = {
-            ObjectType::region, ObjectType::scaffolding, ObjectType::industry, ObjectType::building,
-            ObjectType::interfaceSkin, ObjectType::vehicle, ObjectType::land, ObjectType::currency,
-            ObjectType::water, ObjectType::townNames, ObjectType::levelCrossing, ObjectType::streetLight,
-            ObjectType::snow, ObjectType::climate, ObjectType::hillShapes, ObjectType::cliffEdge,
+            ObjectType::region,
+            ObjectType::scaffolding,
+            ObjectType::industry,
+            ObjectType::building,
+            ObjectType::interfaceSkin,
+            ObjectType::vehicle,
+            ObjectType::land,
+            ObjectType::currency,
+            ObjectType::water,
+            ObjectType::townNames,
+            ObjectType::levelCrossing,
+            ObjectType::streetLight,
+            ObjectType::snow,
+            ObjectType::climate,
+            ObjectType::hillShapes,
+            ObjectType::cliffEdge,
         };
         for (const auto type : kRequiredTypes)
         {
@@ -266,7 +333,8 @@ namespace OpenLoco::Title
     // 0x00444357
     void reset()
     {
-        _sequenceIterator = _titleSequence.begin();
+        loadCustomSequence();
+        _sequenceIterator = _activeSequence->begin();
         _waitCounter = 0;
         reload();
     }
@@ -354,9 +422,30 @@ namespace OpenLoco::Title
         }
     }
 
+    static void handleStep(const SetRotationStep step)
+    {
+        if (Game::hasFlags(GameStateFlags::tileManagerLoaded))
+        {
+            auto main = Ui::WindowManager::getMainWindow();
+            for (int i = 0; main != nullptr && i < 4 && Ui::WindowManager::getCurrentRotation() != step.rotation; i++)
+            {
+                main->viewportRotateRight();
+            }
+        }
+    }
+
+    static void handleStep(const SetZoomStep step)
+    {
+        auto main = Ui::WindowManager::getMainWindow();
+        if (Game::hasFlags(GameStateFlags::tileManagerLoaded) && main != nullptr && main->viewports[0] != nullptr)
+        {
+            main->viewportZoomSet(ZoomLevel{ std::clamp<int8_t>(step.zoom, ZoomLevel::min, ZoomLevel::max) }, false);
+        }
+    }
+
     static void handleStep([[maybe_unused]] const ResetStep step)
     {
-        _sequenceIterator = _titleSequence.begin();
+        _sequenceIterator = _activeSequence->begin();
     }
 
     // 0x00444387
@@ -377,7 +466,7 @@ namespace OpenLoco::Title
 
         do
         {
-            if (_sequenceIterator >= _titleSequence.end())
+            if (_sequenceIterator >= _activeSequence->end())
             {
                 return;
             }

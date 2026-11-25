@@ -20,6 +20,7 @@ namespace OpenLoco
         intro,
         screenshot,
         newGame,
+        buildScene,
     };
 
     struct CommandLineOptions

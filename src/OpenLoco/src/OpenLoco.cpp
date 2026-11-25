@@ -1,12 +1,16 @@
-#include "Scenario/Scenario.h"
+#include "Date.h"
+#include "EditorController.h"
 #include "GameState.h"
 #include "GameStateFlags.h"
-#include <OpenLoco/Core/Prng.h>
-#include "Date.h"
 #include "S5/S5.h"
+#include "S5/S5File.h"
+#include "S5/S5Options.h"
+#include "Scenario/Scenario.h"
 #include "Scenario/ScenarioOptions.h"
+#include "SceneBuilder.h"
 #include "Title.h"
-#include "EditorController.h"
+#include <OpenLoco/Core/FileStream.h>
+#include <OpenLoco/Core/Prng.h>
 #include <algorithm>
 #include <cassert>
 #include <chrono>
@@ -39,6 +43,7 @@
 #include "Gui.h"
 #include "Input.h"
 #include "Input/Shortcuts.h"
+#include "Jukebox.h"
 #include "Localisation/Formatting.h"
 #include "Localisation/LanguageFiles.h"
 #include "Localisation/Languages.h"
@@ -172,6 +177,7 @@ namespace OpenLoco
 
         Localisation::enumerateLanguages();
         Localisation::loadLanguageFile();
+        Jukebox::applyMusicTitles();
 
         startupChecks();
 
@@ -440,26 +446,90 @@ namespace OpenLoco
                 continue;
             }
             bool ok = true;
-            if (name == "options") { Options::open(); }
-            else if (name == "audio") { Options::openAudioSettings(); }
-            else if (name == "objects") { ObjectSelectionWindow::open(); }
-            else if (name == "company") { CompanyWindow::open(company); }
-            else if (name == "finances") { CompanyWindow::openFinances(company); }
-            else if (name == "companies") { CompanyList::open(); }
-            else if (name == "towns") { TownList::open(); }
-            else if (name == "industries") { IndustryList::open(); }
-            else if (name == "stations") { StationList::open(company); }
-            else if (name == "trains") { VehicleList::open(company, VehicleType::train); }
-            else if (name == "terraform") { Terraform::open(); }
-            else if (name == "trees") { Terraform::openPlantTrees(); }
-            else if (name == "map") { MapWindow::open(); }
-            else if (name == "music") { MusicSelection::open(); }
-            else if (name == "messages") { MessageWindow::open(); }
-            else if (name == "about") { About::open(); }
-            else if (name == "shortcuts") { KeyboardShortcuts::open(); }
-            else if (name == "landscape") { LandscapeGeneration::open(); }
-            else if (name == "construction") { Construction::openWithFlags(0); }
-            else if (name == "roadconstruction") { Construction::openWithFlags(1U << 7); }
+            if (name == "options")
+            {
+                Options::open();
+            }
+            else if (name == "audio")
+            {
+                Options::openAudioSettings();
+            }
+            else if (name == "objects")
+            {
+                ObjectSelectionWindow::open();
+            }
+            else if (name == "company")
+            {
+                CompanyWindow::open(company);
+            }
+            else if (name == "finances")
+            {
+                CompanyWindow::openFinances(company);
+            }
+            else if (name == "companies")
+            {
+                CompanyList::open();
+            }
+            else if (name == "towns")
+            {
+                TownList::open();
+            }
+            else if (name == "industries")
+            {
+                IndustryList::open();
+            }
+            else if (name == "stations")
+            {
+                StationList::open(company);
+            }
+            else if (name == "trains")
+            {
+                VehicleList::open(company, VehicleType::train);
+            }
+            else if (name == "terraform")
+            {
+                Terraform::open();
+            }
+            else if (name == "trees")
+            {
+                Terraform::openPlantTrees();
+            }
+            else if (name == "map")
+            {
+                MapWindow::open();
+            }
+            else if (name == "music")
+            {
+                MusicSelection::open();
+            }
+            else if (name == "jukebox")
+            {
+                MusicJukebox::open();
+            }
+            else if (name == "messages")
+            {
+                MessageWindow::open();
+            }
+            else if (name == "about")
+            {
+                About::open();
+            }
+            else if (name == "shortcuts")
+            {
+                KeyboardShortcuts::open();
+            }
+            else if (name == "landscape")
+            {
+                LandscapeGeneration::open();
+            }
+            else if (name == "construction")
+            {
+                Construction::openWithFlags(0);
+            }
+            else if (name == "roadconstruction")
+            {
+                Construction::openWithFlags(1U << 7);
+            }
             else
             {
                 ok = false;
@@ -539,14 +609,30 @@ namespace OpenLoco
         return true;
     }
 
-
     bool screenshotGame(const fs::path& savePath, int32_t ticks, const fs::path& outputPath, const Ui::HeadlessScreenshotOptions& options)
     {
+        // OpenGraphics fork：標題畫面的存檔（title.dat，檔頭有 isTitleSequence 旗標）一般載入會拒絕，改以標題模式載入
+        bool isTitleSequence = false;
         try
         {
             initialise();
-            Scenes::BootScene::loadFile(savePath);
-            SceneManager::applySceneTransition();
+            {
+                FileStream stream(savePath, StreamMode::read);
+                auto file = S5::loadSave(stream);
+                isTitleSequence = file != nullptr && file->header.hasFlags(S5::HeaderFlags::isTitleSequence);
+            }
+            if (isTitleSequence)
+            {
+                if (!S5::importSaveToGameState(savePath, S5::LoadFlags::titleSequence))
+                {
+                    throw std::runtime_error("title sequence could not be imported");
+                }
+            }
+            else
+            {
+                Scenes::BootScene::loadFile(savePath);
+                SceneManager::applySceneTransition();
+            }
         }
         catch (const std::exception& e)
         {
@@ -554,7 +640,7 @@ namespace OpenLoco
             return false;
         }
 
-        if (SceneManager::getCurrentScene() != SceneManager::SceneId::gameplay)
+        if (!isTitleSequence && SceneManager::getCurrentScene() != SceneManager::SceneId::gameplay)
         {
             Logging::error("Unable to load {}", savePath.u8string());
             return false;
@@ -582,6 +668,12 @@ namespace OpenLoco
     }
 
     // OpenGraphics fork：headless 開新遊戲（與編輯器／新遊戲相同的流程），模擬 ticks 後存檔
+    bool buildScene(const fs::path& scenePath, const fs::path& outputPath)
+    {
+        initialise();
+        return SceneBuilder::build(scenePath, outputPath);
+    }
+
     bool newGame(const fs::path& outputPath, int32_t ticks, const std::vector<std::string>& preferredObjects)
     {
         try
@@ -618,8 +710,7 @@ namespace OpenLoco
             }
 
             S5::exportGameStateToFile(outputPath, S5::SaveFlags::none);
-            Logging::info("New game ({} ticks, date {}) saved to {}; object selection {}", ticks, getCurrentDay(),
-                          outputPath.u8string(), valid ? "valid" : "INVALID");
+            Logging::info("New game ({} ticks, date {}) saved to {}; object selection {}", ticks, getCurrentDay(), outputPath.u8string(), valid ? "valid" : "INVALID");
             return valid;
         }
         catch (const std::exception& e)

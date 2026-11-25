@@ -28,6 +28,7 @@
 #include "Objects/TrackObject.h"
 #include "Paint/Paint.h"
 #include "Paint/PaintTile.h"
+#include "TrackPieces.h"
 #include "Tutorial.h"
 #include "Ui/Dropdown.h"
 #include "Ui/ToolManager.h"
@@ -56,46 +57,6 @@ namespace OpenLoco::Ui::Windows::Construction::Construction
     static World::TilePos2 _toolPosInitial;
 
     static std::optional<CopiedTrack> _copiedTrack;
-
-    namespace TrackPiece
-    {
-        enum
-        {
-            straight,
-            left_hand_curve_very_small,
-            right_hand_curve_very_small,
-            left_hand_curve_small,
-            right_hand_curve_small,
-            left_hand_curve,
-            right_hand_curve,
-            left_hand_curve_large,
-            right_hand_curve_large,
-            s_bend_left,
-            s_bend_right,
-            s_bend_to_dual_track,
-            s_bend_to_single_track,
-            turnaround,
-            null = 0xFF,
-        };
-    }
-
-    namespace TrackGradient
-    {
-        enum
-        {
-            level = 0,
-            slope_up = 2,
-            steep_slope_up = 4,
-            slope_down = 6,
-            steep_slope_down = 8,
-        };
-    };
-
-    struct TrackPieceId
-    {
-        uint8_t id;
-        uint8_t rotation;
-    };
 
     static constexpr auto widgets = makeWidgets(
         Common::makeCommonWidgets(138, 276, StringIds::stringid_2),
@@ -150,9 +111,6 @@ namespace OpenLoco::Ui::Windows::Construction::Construction
     };
 
     WindowEventList events;
-
-    static std::optional<TrackPieceId> getRoadPieceId(uint8_t trackPiece, uint8_t gradient, uint8_t rotation);
-    static std::optional<TrackPieceId> getTrackPieceId(uint8_t trackPiece, uint8_t gradient, uint8_t rotation);
 
     // 0x0049B50C
     void reset()
@@ -1150,7 +1108,7 @@ namespace OpenLoco::Ui::Windows::Construction::Construction
     }
 
     // 0x004A0832
-    static std::optional<TrackPieceId> getRoadPieceId(uint8_t trackPiece, uint8_t gradient, uint8_t rotation)
+    std::optional<TrackPieceId> getRoadPieceId(uint8_t trackPiece, uint8_t gradient, uint8_t rotation)
     {
         if (trackPiece == TrackPiece::null)
         {

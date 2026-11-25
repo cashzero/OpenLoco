@@ -27,6 +27,8 @@ namespace OpenLoco
     void resetSubsystems();
     bool simulateGame(const fs::path& path, int32_t ticks);
     bool newGame(const fs::path& outputPath, int32_t ticks, const std::vector<std::string>& preferredObjects);
+    // OpenGraphics fork：依場景腳本（YAML）建造地圖並存檔（SceneBuilder）
+    bool buildScene(const fs::path& scenePath, const fs::path& outputPath);
     bool screenshotGame(const fs::path& path, int32_t ticks, const fs::path& outputPath, const Ui::HeadlessScreenshotOptions& options);
 
     void initialise();

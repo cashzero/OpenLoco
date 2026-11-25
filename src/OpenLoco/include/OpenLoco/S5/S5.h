@@ -102,6 +102,7 @@ namespace OpenLoco::S5
         packCustomObjects = 1U << 0,
         scenario = 1U << 1,
         landscape = 1U << 2,
+        titleSequence = 1U << 3, // OpenGraphics fork：存成標題畫面用的存檔（檔頭 isTitleSequence，標題模式才能載入）
         isAutosave = 1U << 28,
         noWindowClose = 1U << 29,
         raw = 1U << 30,  // Save raw data including pointers with no clean up

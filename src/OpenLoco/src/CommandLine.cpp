@@ -366,6 +366,11 @@ namespace OpenLoco
                 options.action = CommandLineAction::newGame;
                 options.ticks = parser.getArg<int32_t>(1);
             }
+            else if (firstArg == "build-scene")
+            {
+                options.action = CommandLineAction::buildScene;
+                options.path = parser.getArg(1);
+            }
             else if (firstArg == "screenshot")
             {
                 options.action = CommandLineAction::screenshot;
