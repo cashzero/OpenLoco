@@ -88,3 +88,18 @@ if (HAS_LIBSTDCPP)
         message(WARNING "TBB could not be found but using libstdc++ multithreding may be broken")
     endif()
 endif()
+
+## TinySoundFont（OpenGraphics fork）：MIDI 音樂以 SoundFont 合成（tsf.h + tml.h，MIT）
+FetchContent_Declare(tinysoundfont_tsf
+    URL      https://raw.githubusercontent.com/schellingb/TinySoundFont/853a0a171759f1ddba0de1442133a75912bbeffa/tsf.h
+    URL_HASH SHA256=70d55963c98f60ebb81518eaa1f25d46888d5180eb5f5289fd6b74ffc177d197
+    DOWNLOAD_NO_EXTRACT TRUE
+)
+FetchContent_Declare(tinysoundfont_tml
+    URL      https://raw.githubusercontent.com/schellingb/TinySoundFont/853a0a171759f1ddba0de1442133a75912bbeffa/tml.h
+    URL_HASH SHA256=93257db259e0efb2ea2037d7157841bec8cb4a2d7986286e43c8090705326546
+    DOWNLOAD_NO_EXTRACT TRUE
+)
+FetchContent_MakeAvailable(tinysoundfont_tsf tinysoundfont_tml)
+add_library(TinySoundFont INTERFACE)
+target_include_directories(TinySoundFont SYSTEM INTERFACE "${tinysoundfont_tsf_SOURCE_DIR}" "${tinysoundfont_tml_SOURCE_DIR}")

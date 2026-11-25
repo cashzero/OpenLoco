@@ -107,6 +107,10 @@ namespace OpenLoco::Audio
     void resetSoundObjects();
 
     std::optional<BufferId> loadMusicSample(Environment::PathId asset);
+    // OpenGraphics fork：MIDI 音樂正在背景合成（loadMusicSample 暫時回傳 nullopt）
+    bool isMusicSampleLoading(Environment::PathId asset);
+    // OpenGraphics fork：合成完成時開始播放等待中的音樂（由 tick 呼叫）
+    void updatePendingMusic();
 
     int32_t calculatePan(const coord_t coord, const int32_t screenSize);
 

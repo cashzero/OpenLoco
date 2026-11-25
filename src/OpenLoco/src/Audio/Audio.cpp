@@ -11,13 +11,17 @@
 #include "Objects/SoundObject.h"
 #include "SceneManager.h"
 #include "Ui/WindowManager.h"
-#include <set>
 #include <OpenLoco/Audio/AudioEngine.h>
+#include <OpenLoco/Audio/MidiRenderer.h>
 #include <OpenLoco/Core/Exception.hpp>
 #include <OpenLoco/Core/FileStream.h>
 #include <array>
 #include <cassert>
+#include <cctype>
+#include <chrono>
+#include <future>
 #include <numeric>
+#include <set>
 #include <unordered_map>
 
 #ifdef _WIN32
@@ -92,6 +96,110 @@ namespace OpenLoco::Audio
     // OpenGraphics fork：缺少的音樂／環境音檔只警告一次，之後安靜略過（standalone 時沒有 vanilla 音訊）
     static std::set<PathId> _unavailableMusicSamples;
 
+    // OpenGraphics fork：MIDI 音樂（例如 OpenMSX）在背景執行緒以 SoundFont 合成，完成前 loadMusicSample 回傳 nullopt
+    static std::unordered_map<PathId, std::future<RenderedAudio>> _pendingMidiRenders;
+
+    static bool equalsIgnoreCase(const std::string& a, const std::string& b)
+    {
+        return a.size() == b.size() && std::equal(a.begin(), a.end(), b.begin(), [](char x, char y) {
+                   return std::tolower(static_cast<unsigned char>(x)) == std::tolower(static_cast<unsigned char>(y));
+               });
+    }
+
+    // 原檔名（不分大小寫），找不到時改找同一資料夾內同名的 .mid／.midi
+    static std::optional<fs::path> findMusicFile(const fs::path& path)
+    {
+        if (fs::exists(path))
+        {
+            return path;
+        }
+        const auto dir = path.parent_path();
+        std::error_code ec;
+        if (!fs::is_directory(dir, ec))
+        {
+            return std::nullopt;
+        }
+        const auto stem = path.stem().u8string();
+        const auto ext = path.extension().u8string();
+        std::optional<fs::path> alternative;
+        for (const auto& entry : fs::directory_iterator(dir, ec))
+        {
+            const auto& candidate = entry.path();
+            if (!entry.is_regular_file(ec) || !equalsIgnoreCase(candidate.stem().u8string(), stem))
+            {
+                continue;
+            }
+            const auto candidateExt = candidate.extension().u8string();
+            if (equalsIgnoreCase(candidateExt, ext))
+            {
+                return candidate;
+            }
+            if (equalsIgnoreCase(candidateExt, ".mid") || equalsIgnoreCase(candidateExt, ".midi"))
+            {
+                alternative = candidate;
+            }
+        }
+        return alternative;
+    }
+
+    // MIDI 用的 SoundFont：音樂檔所在資料夾內的第一個 .sf2（依檔名排序）
+    static std::optional<fs::path> findSoundFont(const fs::path& dir)
+    {
+        std::error_code ec;
+        std::vector<fs::path> fonts;
+        for (const auto& entry : fs::directory_iterator(dir, ec))
+        {
+            if (entry.is_regular_file(ec) && equalsIgnoreCase(entry.path().extension().u8string(), ".sf2"))
+            {
+                fonts.push_back(entry.path());
+            }
+        }
+        if (fonts.empty())
+        {
+            return std::nullopt;
+        }
+        std::sort(fonts.begin(), fonts.end());
+        return fonts.front();
+    }
+
+    static std::vector<uint8_t> readAllBytes(const fs::path& path)
+    {
+        FileStream fs(path, StreamMode::read);
+        std::vector<uint8_t> data(fs.getLength());
+        fs.read(data.data(), data.size());
+        return data;
+    }
+
+    bool isMusicSampleLoading(PathId asset)
+    {
+        return _pendingMidiRenders.contains(asset);
+    }
+
+    static std::optional<BufferId> collectMidiRender(PathId asset)
+    {
+        auto& pending = _pendingMidiRenders.at(asset);
+        if (pending.wait_for(std::chrono::seconds(0)) != std::future_status::ready)
+        {
+            return std::nullopt;
+        }
+        try
+        {
+            auto rendered = pending.get();
+            _pendingMidiRenders.erase(asset);
+            auto id = loadBuffer(std::span<const uint8_t>(rendered.pcm.data(), rendered.pcm.size()), rendered.format);
+            _musicSamples[asset] = id;
+            Logging::verbose("Rendered MIDI music sample {} ({:.1f} s)", static_cast<int>(asset), rendered.pcm.size() / 4.0 / rendered.format.sampleRate);
+            return id;
+        }
+        catch (const std::exception& ex)
+        {
+            _pendingMidiRenders.erase(asset);
+            Logging::error("Unable to render MIDI music sample {}: {}", static_cast<int>(asset), ex.what());
+            _unavailableMusicSamples.insert(asset);
+            return std::nullopt;
+        }
+    }
+
     std::optional<BufferId> loadMusicSample(PathId asset)
     {
         auto res = _musicSamples.find(asset);
@@ -103,16 +211,37 @@ namespace OpenLoco::Audio
         {
             return std::nullopt;
         }
-
-        const auto path = Environment::getPathNoWarning(asset);
-        if (!fs::exists(path))
+        if (_pendingMidiRenders.contains(asset))
         {
-            Logging::warn("Music sample '{}' not found, it will be silent", path);
+            return collectMidiRender(asset);
+        }
+
+        const auto expectedPath = Environment::getPathNoWarning(asset);
+        const auto foundPath = findMusicFile(expectedPath);
+        if (!foundPath)
+        {
+            Logging::warn("Music sample '{}' not found, it will be silent", expectedPath);
             _unavailableMusicSamples.insert(asset);
             return std::nullopt;
         }
+        const auto& path = *foundPath;
         try
         {
+            auto data = readAllBytes(path);
+            if (isMidiData(data))
+            {
+                const auto soundFont = findSoundFont(path.parent_path());
+                if (!soundFont)
+                {
+                    throw Exception::RuntimeError("MIDI music needs a SoundFont (.sf2) in the same folder.");
+                }
+                Logging::verbose("Rendering MIDI music '{}' with '{}'", path, *soundFont);
+                _pendingMidiRenders.emplace(asset, std::async(std::launch::async, [data = std::move(data), font = *soundFont]() {
+                                                return renderMidi(data, font);
+                                            }));
+                return std::nullopt;
+            }
+
             FileStream fs(path, StreamMode::read);
 
             const auto sig = fs.readValue<uint32_t>();
@@ -181,6 +310,7 @@ namespace OpenLoco::Audio
 
     static void disposeSamples()
     {
+        _pendingMidiRenders.clear(); // 等待背景合成結束
         for (auto& buf : _samples)
         {
             unloadBuffer(buf);
@@ -571,6 +701,7 @@ namespace OpenLoco::Audio
     void tick()
     {
         reclaimFinishedInstances();
+        updatePendingMusic();
         updateVehicleNoise();
         updateAmbientNoise();
     }

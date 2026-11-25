@@ -4,9 +4,16 @@
 #include "Date.h"
 #include "Environment.h"
 #include "Localisation/StringIds.h"
+#include "Localisation/StringManager.h"
+#include "Logging.h"
+#include <cctype>
+#include <deque>
 #include <numeric>
+#include <unordered_map>
+#include <yaml-cpp/yaml.h>
 
 using namespace OpenLoco::Environment;
+using namespace OpenLoco::Diagnostics;
 
 namespace OpenLoco::Jukebox
 {
@@ -51,6 +58,54 @@ namespace OpenLoco::Jukebox
     const MusicInfo& getMusicInfo(MusicId track)
     {
         return kMusicInfo[track];
+    }
+
+    static std::string toLower(std::string s)
+    {
+        for (auto& c : s)
+        {
+            c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+        }
+        return s;
+    }
+
+    void applyMusicTitles()
+    {
+        // 曲名字串要一直存在（StringManager 只保存指標）
+        static std::deque<std::string> titles;
+
+        const auto musicDir = getPathNoWarning(PathId::css5).parent_path();
+        const auto file = musicDir / "music.yml";
+        std::error_code ec;
+        if (!fs::exists(file, ec))
+        {
+            return;
+        }
+        try
+        {
+            std::unordered_map<std::string, std::string> byStem;
+            const auto root = YAML::LoadFile(file.string());
+            for (const auto& item : root)
+            {
+                byStem[toLower(item.first.as<std::string>())] = item.second.as<std::string>();
+            }
+            titles.clear();
+            for (const auto& info : kMusicInfo)
+            {
+                const auto stem = toLower(getPathNoWarning(info.pathId).stem().u8string());
+                const auto it = byStem.find(stem);
+                if (it != byStem.end())
+                {
+                    titles.push_back(it->second);
+                    StringManager::swapString(info.titleId, titles.back().c_str());
+                }
+            }
+            Logging::verbose("Applied {} music titles from {}", titles.size(), file);
+        }
+        catch (const std::exception& ex)
+        {
+            Logging::error("Unable to read music titles from {}: {}", file, ex.what());
+        }
     }
 
     bool isMusicPlaying()

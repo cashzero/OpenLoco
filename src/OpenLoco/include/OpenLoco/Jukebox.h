@@ -47,4 +47,8 @@ namespace OpenLoco::Jukebox
     bool disableMusic();
     bool enableMusic();
     void resetJukebox();
+
+    // OpenGraphics fork：依音樂資料夾內的 music.yml（檔名 → 曲名）替換點唱機顯示的曲名。
+    // 每次載入語言檔之後呼叫（語言檔會重設所有字串）。
+    void applyMusicTitles();
 }
