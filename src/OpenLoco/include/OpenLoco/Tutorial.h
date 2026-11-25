@@ -16,6 +16,8 @@ namespace OpenLoco::Tutorial
     State state();
 
     void initialise(int16_t tutorialNumber);
+    // OpenGraphics fork：教學檔（錄製的操作）與 Boulder Breakers 情境都存在時才能開始教學（standalone 沒有）
+    bool isAvailable();
     void start();
     void stop();
 

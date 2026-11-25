@@ -4,12 +4,16 @@
 #include "GameState.h"
 #include "Gui.h"
 #include "Localisation/StringIds.h"
+#include "Logging.h"
 #include "Scenario/Scenario.h"
 #include "SceneManager.h"
 #include "Ui.h"
+#include <OpenLoco/Core/Exception.hpp>
 
+#include <cctype>
 #include <fstream>
 #include <iterator>
+#include <optional>
 #include <vector>
 
 namespace OpenLoco::Tutorial
@@ -35,7 +39,7 @@ namespace OpenLoco::Tutorial
         file.unsetf(std::ios::skipws);
         if (!file)
         {
-            throw;
+            throw Exception::RuntimeError("Unable to open tutorial file " + filename.u8string());
         }
 
         std::vector<uint16_t> tutorial;
@@ -50,7 +54,7 @@ namespace OpenLoco::Tutorial
             // We expect an even number of bytes
             if (it == end)
             {
-                throw;
+                throw Exception::RuntimeError("Tutorial file has an odd number of bytes");
             }
 
             auto const secondByte = *it;
@@ -61,9 +65,52 @@ namespace OpenLoco::Tutorial
     }
 
     // 0x0043C590
+    // 不分大小寫找檔案（Locomotion 的檔名大小寫不一致）
+    static bool fileExistsIgnoreCase(const fs::path& path)
+    {
+        std::error_code ec;
+        if (fs::exists(path, ec))
+        {
+            return true;
+        }
+        auto lower = [](std::string s) {
+            for (auto& c : s)
+            {
+                c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+            }
+            return s;
+        };
+        const auto wanted = lower(path.filename().u8string());
+        for (const auto& entry : fs::directory_iterator(path.parent_path(), ec))
+        {
+            if (lower(entry.path().filename().u8string()) == wanted)
+            {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    bool isAvailable()
+    {
+        static std::optional<bool> available;
+        if (!available.has_value())
+        {
+            available = fileExistsIgnoreCase(Environment::getPathNoWarning(Environment::PathId::boulderBreakers))
+                && fileExistsIgnoreCase(Environment::getPathNoWarning(Environment::PathId::tut1024_1))
+                && fileExistsIgnoreCase(Environment::getPathNoWarning(Environment::PathId::tut1024_2))
+                && fileExistsIgnoreCase(Environment::getPathNoWarning(Environment::PathId::tut1024_3));
+            if (!*available)
+            {
+                Diagnostics::Logging::info("Tutorial files not found: tutorials are disabled");
+            }
+        }
+        return *available;
+    }
+
     void initialise(int16_t tutorialNumber)
     {
-        if (tutorialNumber < 0 || tutorialNumber > 3)
+        if (tutorialNumber < 0 || tutorialNumber > 3 || !isAvailable())
         {
             return;
         }

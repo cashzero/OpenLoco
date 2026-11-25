@@ -188,6 +188,20 @@ namespace OpenLoco::Ui::Windows::TitleMenu
         auto& config = Config::get();
         window.widgets[widx::multiplayer_toggle_btn].hidden = config.network.enabled ? false : true;
 
+        // OpenGraphics fork：沒有教學檔（standalone）時隱藏教學按鈕，其餘三個按鈕置中
+        if (!OpenLoco::Tutorial::isAvailable())
+        {
+            window.disabledWidgets |= (1ULL << widx::tutorial_btn);
+            window.widgets[widx::tutorial_btn].hidden = true;
+            constexpr int16_t kHalf = kBtnMainSize / 2;
+            window.widgets[widx::scenario_list_btn].left = kHalf;
+            window.widgets[widx::scenario_list_btn].right = kHalf + kBtnMainSize - 1;
+            window.widgets[widx::load_game_btn].left = kHalf + kBtnMainSize;
+            window.widgets[widx::load_game_btn].right = kHalf + kBtnMainSize * 2 - 1;
+            window.widgets[widx::scenario_editor_btn].left = kHalf + kBtnMainSize * 2;
+            window.widgets[widx::scenario_editor_btn].right = kHalf + kBtnMainSize * 3 - 1;
+        }
+
         if (SceneManager::isNetworked())
         {
             window.widgets[widx::tutorial_btn].hidden = true;
